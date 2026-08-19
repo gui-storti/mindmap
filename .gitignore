@@ -8,7 +8,12 @@ dist-ssr/
 
 # Tauri build artifacts
 src-tauri/target/
-src-tauri/gen/
+src-tauri/gen/schemas/
+
+# Android signing (secrets — never commit)
+src-tauri/*.jks
+src-tauri/key.properties
+src-tauri/keystore.properties
 
 # Logs
 logs/
