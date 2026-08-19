@@ -7,26 +7,31 @@ export interface ForceNode {
   pinned: boolean;
 }
 
-const REST_LENGTH = 130;
+const REST_LENGTH = 150;
 const SPRING_K = 0.035;
-const CENTER_K = 0.00045;
-const REPEL_K = 2600;
-const CUTOFF = 240;
+const CENTER_K = 0.00012;
+const REPEL_K = 9000;
+const CUTOFF = 320;
 const CELL = 120;
 const DAMPING = 0.86;
+const MAX_VEL = 14;
+const MIN_D2 = 36;
 
 export class ForceSim {
   nodes = new Map<string, ForceNode>();
   edges: [string, string][] = [];
+  radii = new Map<string, number>();
   alpha = 0;
 
   setGraph(
     ids: string[],
     edges: [string, string][],
-    seed: Map<string, { x: number; y: number }>
+    seed: Map<string, { x: number; y: number }>,
+    sizes?: Map<string, { w: number; h: number }>
   ) {
     const prev = this.nodes;
     const next = new Map<string, ForceNode>();
+    const radii = new Map<string, number>();
     for (const id of ids) {
       const old = prev.get(id);
       const s = seed.get(id);
@@ -38,8 +43,11 @@ export class ForceSim {
         vy: 0,
         pinned: false,
       });
+      const sz = sizes?.get(id);
+      radii.set(id, sz ? sz.w / 2 : 60);
     }
     this.nodes = next;
+    this.radii = radii;
     this.edges = edges;
     this.alpha = 1;
   }
@@ -104,7 +112,7 @@ export class ForceSim {
             const d2 = dx * dx + dy * dy;
             if (d2 > cutoff2 || d2 === 0) continue;
             const d = Math.sqrt(d2);
-            const f = (REPEL_K / d2) * this.alpha;
+            const f = (REPEL_K / Math.max(d2, MIN_D2)) * this.alpha;
             fx.set(n.id, fx.get(n.id)! + (dx / d) * f);
             fy.set(n.id, fy.get(n.id)! + (dy / d) * f);
           }
@@ -129,6 +137,32 @@ export class ForceSim {
       fy.set(b, fy.get(b)! - uy * f);
     }
 
+    // collision: push apart nodes whose visual boxes overlap
+    for (const n of ns) {
+      const cx = Math.floor(n.x / CELL);
+      const cy = Math.floor(n.y / CELL);
+      const rn = this.radii.get(n.id) ?? 60;
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        for (let gy = cy - 1; gy <= cy + 1; gy++) {
+          const arr = bins.get(`${gx},${gy}`);
+          if (!arr) continue;
+          for (const m of arr) {
+            if (m.id === n.id) continue;
+            const rm = this.radii.get(m.id) ?? 60;
+            const minDist = rn + rm;
+            const dx = n.x - m.x;
+            const dy = n.y - m.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 >= minDist * minDist) continue;
+            const d = Math.sqrt(d2) || 0.01;
+            const push = ((minDist - d) / d) * 0.5;
+            fx.set(n.id, fx.get(n.id)! + dx * push);
+            fy.set(n.id, fy.get(n.id)! + dy * push);
+          }
+        }
+      }
+    }
+
     // centering + integrate
     for (const n of ns) {
       if (n.pinned) continue;
@@ -136,6 +170,12 @@ export class ForceSim {
       const fyc = fy.get(n.id)! - n.y * CENTER_K * this.alpha * 10;
       n.vx = (n.vx + fxc * step) * DAMPING;
       n.vy = (n.vy + fyc * step) * DAMPING;
+      const v2 = n.vx * n.vx + n.vy * n.vy;
+      if (v2 > MAX_VEL * MAX_VEL) {
+        const s = MAX_VEL / Math.sqrt(v2);
+        n.vx *= s;
+        n.vy *= s;
+      }
       n.x += n.vx * step;
       n.y += n.vy * step;
     }

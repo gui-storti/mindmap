@@ -259,10 +259,13 @@ export class Engine {
     if (mode === "force") {
       const seed = new Map<string, { x: number; y: number }>();
       for (const [id, v] of this.visuals) seed.set(id, { x: v.x, y: v.y });
+      const sizes = new Map<string, { w: number; h: number }>();
+      for (const [id, p] of layout.positions) sizes.set(id, { w: p.w, h: p.h });
       this.sim.setGraph(
         [...layout.positions.keys()],
         layout.edges,
-        seed
+        seed,
+        sizes
       );
       this.simActive = true;
     } else {
