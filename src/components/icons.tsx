@@ -151,6 +151,15 @@ export const IconClose = (p: P) => (
   </svg>
 );
 
+export const IconGrid = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+  </svg>
+);
+
 export const IconPrev = (p: P) => (
   <svg {...base(p)}>
     <path d="M15 6l-6 6 6 6" />

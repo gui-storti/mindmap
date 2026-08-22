@@ -288,6 +288,21 @@ export class Engine {
     this.kick();
   }
 
+  /** Drop all visuals and reset the camera (used when closing a map). */
+  clear() {
+    this.layout = null;
+    this.visuals.clear();
+    this.simActive = false;
+    this.selectedSet.clear();
+    this.searchSet.clear();
+    this.hoverId = null;
+    this.dropTargetId = null;
+    this.dragId = null;
+    this.cam = { x: 0, y: 0, z: 1 };
+    this.camT = { x: 0, y: 0, z: 1 };
+    this.kick();
+  }
+
   centerOn(id: string) {
     const v = this.visuals.get(id);
     if (!v) return;

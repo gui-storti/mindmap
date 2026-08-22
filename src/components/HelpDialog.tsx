@@ -11,6 +11,7 @@ const SHORTCUTS: [string, string][] = [
   ["Ctrl+Z", "Undo"],
   ["Ctrl+Shift+Z", "Redo"],
   ["Ctrl+S", "Export .mind"],
+  ["Ctrl+M", "Your maps"],
   ["Esc", "Deselect"],
 ];
 

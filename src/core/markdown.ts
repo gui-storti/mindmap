@@ -83,6 +83,7 @@ export function fromMarkdown(md: string): MindMap {
 
   return {
     version: 1,
+    id: uid(),
     title: nodes[rootId]?.text ?? "Mindmap",
     rootId,
     nodes,

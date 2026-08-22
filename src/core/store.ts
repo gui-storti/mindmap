@@ -76,6 +76,8 @@ export interface MindmapStore {
   images: Record<string, ImageAsset>;
   layoutMode: LayoutMode;
   hasMap: boolean;
+  /** Identity of the map currently open ("" when none). */
+  mapId: string;
   dataVersion: number;
   searchQuery: string;
   searchMatches: string[];
@@ -96,6 +98,7 @@ export interface MindmapStore {
 
   newMap(title?: string): void;
   loadMap(map: MindMap, images?: Record<string, ImageAsset>): void;
+  closeMap(): void;
   addChild(parentId?: string | null): string;
   addSibling(id: string): string;
   deleteNode(id: string): void;
@@ -476,6 +479,7 @@ export const useStore = create<MindmapStore>((set, get) => {
     images: {},
     layoutMode: "tree",
     hasMap: false,
+    mapId: "",
     dataVersion: 0,
     searchQuery: "",
     searchMatches: [],
@@ -504,6 +508,7 @@ export const useStore = create<MindmapStore>((set, get) => {
         images: {},
         layoutMode: "tree",
         hasMap: true,
+        mapId: uid(),
         selectedId: root.id,
         selectedIds: [root.id],
         editingId: null,
@@ -523,12 +528,35 @@ export const useStore = create<MindmapStore>((set, get) => {
         images,
         layoutMode: map.layout,
         hasMap: true,
+        mapId: map.id,
         selectedId: map.rootId,
         selectedIds: [map.rootId],
         editingId: null,
         past: [],
         future: [],
         ...rc,
+        dataVersion: get().dataVersion + 1,
+      });
+    },
+
+    closeMap: () => {
+      set({
+        title: "Untitled map",
+        rootId: "",
+        nodes: {},
+        images: {},
+        layoutMode: "tree",
+        hasMap: false,
+        mapId: "",
+        selectedId: null,
+        selectedIds: [],
+        editingId: null,
+        inspectorOpen: false,
+        searchQuery: "",
+        searchMatches: [],
+        layout: null,
+        past: [],
+        future: [],
         dataVersion: get().dataVersion + 1,
       });
     },
@@ -996,6 +1024,7 @@ export function exportMapData(): MindMap {
   const s = useStore.getState();
   return {
     version: 1,
+    id: s.mapId,
     title: s.title,
     rootId: s.rootId,
     nodes: s.nodes,

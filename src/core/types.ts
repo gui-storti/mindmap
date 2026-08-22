@@ -29,6 +29,8 @@ export interface ImageAsset {
 
 export interface MindMap {
   version: 1;
+  /** Stable identity used by the local map library. */
+  id: string;
   title: string;
   rootId: string;
   nodes: Record<string, MindNode>;

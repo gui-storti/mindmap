@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../core/store";
 import type { Engine } from "../core/engine/Engine";
 import {
+  IconClose,
   IconExport,
   IconFit,
+  IconGrid,
   IconHelp,
   IconImport,
   IconMoon,
@@ -24,6 +26,8 @@ interface Props {
   onExportPNG: () => void;
   onExportPDF: () => void;
   onExportMarkdown: () => void;
+  onMaps: () => void;
+  onCloseMap: () => void;
   onHelp: () => void;
 }
 
@@ -35,6 +39,8 @@ export function TopBar({
   onExportPNG,
   onExportPDF,
   onExportMarkdown,
+  onMaps,
+  onCloseMap,
   onHelp,
 }: Props) {
   const title = useStore((s) => s.title);
@@ -90,6 +96,7 @@ export function TopBar({
         {hasMap &&
           (editing ? (
             <input
+              key="edit"
               ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -102,6 +109,7 @@ export function TopBar({
             />
           ) : (
             <input
+              key="display"
               value={title}
               readOnly
               onFocus={startEdit}
@@ -202,6 +210,17 @@ export function TopBar({
             </div>
           )}
         </div>
+        <button className="icon-btn" onClick={onMaps} title="Your maps (Ctrl+M)">
+          <IconGrid />
+        </button>
+        <button
+          className="icon-btn"
+          onClick={onCloseMap}
+          disabled={!hasMap}
+          title="Close map"
+        >
+          <IconClose />
+        </button>
         <button
           className="icon-btn"
           onClick={toggleTheme}

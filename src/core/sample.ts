@@ -118,6 +118,7 @@ export function buildSampleMap(): { map: MindMap; images: Record<string, ImageAs
   return {
     map: {
       version: 1,
+      id: uid(),
       title: "Product Launch",
       rootId: root,
       nodes,

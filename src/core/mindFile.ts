@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { uid } from "./ids";
 import type { ImageAsset, MindMap, MindNode } from "./types";
 
 const EXT_BY_MIME: Record<string, string> = {
@@ -62,6 +63,7 @@ export function normalizeMap(raw: unknown): MindMap {
   nodes[rootId].parentId = null;
   return {
     version: 1,
+    id: typeof r.id === "string" && r.id ? r.id : uid(),
     title: typeof r.title === "string" ? r.title : "Imported map",
     rootId,
     nodes,

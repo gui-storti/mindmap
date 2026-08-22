@@ -33,7 +33,7 @@ function build(
       c.childIds.push(g.id);
     });
   });
-  return { version: 1, title: rootText, rootId: root.id, nodes, layout: "tree" };
+  return { version: 1, id: uid(), title: rootText, rootId: root.id, nodes, layout: "tree" };
 }
 
 export interface Template {

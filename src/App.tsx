@@ -5,7 +5,12 @@ import { exportMapData } from "./core/store";
 import { exportMindMap, importMindMap, normalizeMap } from "./core/mindFile";
 import { openMindFile, openMarkdownFile, saveMindFile, saveBlob } from "./core/bridge";
 import { toMarkdown, fromMarkdown } from "./core/markdown";
-import { pushRecent, getRecent, clearRecent } from "./core/recent";
+import {
+  getLibrary,
+  upsertMap,
+  removeMap,
+  clearLibrary,
+} from "./core/library";
 import { TEMPLATES } from "./core/templates";
 import { TopBar } from "./components/TopBar";
 import { Toolbar } from "./components/Toolbar";
@@ -15,6 +20,7 @@ import { ContextMenu, type CtxPoint } from "./components/ContextMenu";
 import { Minimap } from "./components/Minimap";
 import { Toasts } from "./components/Toasts";
 import { Welcome } from "./components/Welcome";
+import { MapsDialog } from "./components/MapsDialog";
 import { HelpDialog } from "./components/HelpDialog";
 import { SearchBar } from "./components/SearchBar";
 import { Breadcrumbs } from "./components/Breadcrumbs";
@@ -37,18 +43,24 @@ function loadAutosave(): boolean {
 function saveAutosave() {
   const s = useStore.getState();
   if (!s.hasMap) return;
+  const data = exportMapData();
   try {
-    let payload = JSON.stringify({
-      data: exportMapData(),
-      images: s.images,
-    });
+    let payload = JSON.stringify({ data, images: s.images });
     if (payload.length > 4_000_000) {
-      payload = JSON.stringify({ data: exportMapData(), images: {} });
+      payload = JSON.stringify({ data, images: {} });
     }
     localStorage.setItem(AUTOSAVE_KEY, payload);
-    pushRecent(exportMapData());
   } catch {
     /* quota exceeded — ignore */
+  }
+  upsertMap(data, s.images);
+}
+
+function clearAutosave() {
+  try {
+    localStorage.removeItem(AUTOSAVE_KEY);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -65,8 +77,10 @@ export default function App() {
   const [camTick, setCamTick] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mapsOpen, setMapsOpen] = useState(false);
 
   const hasMap = useStore((s) => s.hasMap);
+  const mapId = useStore((s) => s.mapId);
   const layout = useStore((s) => s.layout);
   const layoutMode = useStore((s) => s.layoutMode);
   const theme = useStore((s) => s.theme);
@@ -190,6 +204,41 @@ export default function App() {
     }
   }, []);
 
+  const doNewMap = useCallback(() => {
+    saveAutosave();
+    useStore.getState().newMap();
+    saveAutosave();
+    setMapsOpen(false);
+  }, []);
+
+  const doOpenMap = useCallback((id: string) => {
+    const rec = getLibrary().find((r) => r.id === id);
+    if (!rec) return;
+    saveAutosave();
+    useStore.getState().loadMap(rec.data, rec.images);
+    saveAutosave();
+    setMapsOpen(false);
+  }, []);
+
+  const doCloseMap = useCallback(() => {
+    saveAutosave();
+    useStore.getState().closeMap();
+    clearAutosave();
+  }, []);
+
+  const doDeleteMap = useCallback((id: string) => {
+    const rec = removeMap(id);
+    if (!rec) return;
+    const s = useStore.getState();
+    if (s.mapId === id) {
+      s.closeMap();
+      clearAutosave();
+    }
+    s.showToast(`Deleted "${rec.title}"`, "Undo", () => {
+      upsertMap(rec.data, rec.images);
+    });
+  }, []);
+
   // restore previous session
   useEffect(() => {
     loadAutosave();
@@ -281,7 +330,7 @@ export default function App() {
         const r = c.getBoundingClientRect();
         return { left: r.left, top: r.top, width: r.width, height: r.height };
       },
-      newMap: () => useStore.getState().newMap(),
+      newMap: () => doNewMap(),
       addChild: (id?: string) => useStore.getState().addChild(id ?? undefined),
       addSibling: (id: string) => useStore.getState().addSibling(id),
       select: (id: string | null, additive?: boolean) =>
@@ -314,8 +363,19 @@ export default function App() {
         if (t) useStore.getState().loadMap(t.build());
       },
       getRecent: () =>
-        getRecent().map((r) => ({ title: r.title, nodeCount: r.nodeCount })),
-      clearRecent: () => clearRecent(),
+        getLibrary().map((r) => ({ title: r.title, nodeCount: r.nodeCount })),
+      clearRecent: () => clearLibrary(),
+      getLibrary: () =>
+        getLibrary().map((r) => ({
+          id: r.id,
+          title: r.title,
+          nodeCount: r.nodeCount,
+          updatedAt: r.updatedAt,
+        })),
+      openMap: (id: string) => doOpenMap(id),
+      closeMap: () => doCloseMap(),
+      deleteMap: (id: string) => doDeleteMap(id),
+      mapId: () => useStore.getState().mapId,
     };
     return () => {
       delete (window as unknown as Record<string, unknown>).__mm;
@@ -327,11 +387,16 @@ export default function App() {
     if (layout) engineRef.current?.setLayout(layout, layoutMode);
   }, [layout, layoutMode]);
 
-  // fit view when a map appears
+  // fit view when a map appears (or switches)
   useEffect(() => {
     if (!hasMap) return;
     const t = setTimeout(() => engineRef.current?.fitView(false), 60);
     return () => clearTimeout(t);
+  }, [hasMap, mapId]);
+
+  // clear the canvas when no map is open
+  useEffect(() => {
+    if (!hasMap) engineRef.current?.clear();
   }, [hasMap]);
 
   // autosave
@@ -381,6 +446,11 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         doExport();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        setMapsOpen((o) => !o);
         return;
       }
       if (!s.hasMap) return;
@@ -515,6 +585,8 @@ export default function App() {
         onExportPNG={doExportPNG}
         onExportPDF={doExportPDF}
         onExportMarkdown={doExportMarkdown}
+        onMaps={() => setMapsOpen(true)}
+        onCloseMap={doCloseMap}
         onHelp={() => setHelpOpen(true)}
       />
       <Toolbar engine={engineRef} />
@@ -545,6 +617,15 @@ export default function App() {
       )}
       <Toasts />
       <Welcome onImport={doImport} />
+      {mapsOpen && (
+        <MapsDialog
+          onClose={() => setMapsOpen(false)}
+          onNew={doNewMap}
+          onOpen={doOpenMap}
+          onDelete={doDeleteMap}
+          onImport={doImport}
+        />
+      )}
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
     </div>
   );

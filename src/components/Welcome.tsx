@@ -1,43 +1,48 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "../core/store";
 import { buildSampleMap } from "../core/sample";
 import { TEMPLATES } from "../core/templates";
-import { getRecent, clearRecent, type RecentEntry } from "../core/recent";
+import {
+  getLibrary,
+  clearLibrary,
+  removeMap,
+  timeAgo,
+  type MapRecord,
+} from "../core/library";
 import { IconExport, IconImport, IconTrash, LogoMark } from "./icons";
 
 interface Props {
   onImport: () => void;
 }
 
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
 export function Welcome({ onImport }: Props) {
   const hasMap = useStore((s) => s.hasMap);
   const newMap = useStore((s) => s.newMap);
   const loadMap = useStore((s) => s.loadMap);
-  const [recent, setRecent] = useState<RecentEntry[]>(() => getRecent());
+  const [maps, setMaps] = useState<MapRecord[]>(() => getLibrary());
+
+  // refresh the list whenever the welcome screen becomes visible
+  useEffect(() => {
+    if (!hasMap) setMaps(getLibrary());
+  }, [hasMap]);
 
   if (hasMap) return null;
 
-  const refreshRecent = () => setRecent(getRecent());
+  const refresh = () => setMaps(getLibrary());
 
-  const loadRecent = (entry: RecentEntry) => {
-    loadMap(entry.data);
+  const openMap = (r: MapRecord) => {
+    loadMap(r.data, r.images);
   };
 
-  const onClearRecent = () => {
-    clearRecent();
-    refreshRecent();
+  const deleteMap = (id: string) => {
+    removeMap(id);
+    refresh();
+  };
+
+  const onClearAll = () => {
+    clearLibrary();
+    refresh();
   };
 
   return (
@@ -78,6 +83,43 @@ export function Welcome({ onImport }: Props) {
           </div>
         </div>
 
+        {maps.length > 0 && (
+          <div className="welcome-section">
+            <div className="welcome-section-head">
+              <span>Your maps</span>
+              <button
+                className="welcome-clear"
+                onClick={onClearAll}
+                title="Delete all maps"
+              >
+                <IconTrash />
+              </button>
+            </div>
+            <div className="recent-list">
+              {maps.map((r) => (
+                <div key={r.id} className="recent-item">
+                  <button
+                    className="recent-open"
+                    onClick={() => openMap(r)}
+                  >
+                    <span className="recent-title">{r.title}</span>
+                    <span className="recent-meta">
+                      {r.nodeCount} nodes · {timeAgo(r.updatedAt)}
+                    </span>
+                  </button>
+                  <button
+                    className="recent-del"
+                    onClick={() => deleteMap(r.id)}
+                    title="Delete map"
+                  >
+                    <IconTrash />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="welcome-section">
           <div className="welcome-section-head">
             <span>Start from a template</span>
@@ -95,35 +137,6 @@ export function Welcome({ onImport }: Props) {
             ))}
           </div>
         </div>
-
-        {recent.length > 0 && (
-          <div className="welcome-section">
-            <div className="welcome-section-head">
-              <span>Recent</span>
-              <button
-                className="welcome-clear"
-                onClick={onClearRecent}
-                title="Clear recent"
-              >
-                <IconTrash />
-              </button>
-            </div>
-            <div className="recent-list">
-              {recent.map((r, i) => (
-                <button
-                  key={`${r.title}-${i}`}
-                  className="recent-item"
-                  onClick={() => loadRecent(r)}
-                >
-                  <span className="recent-title">{r.title}</span>
-                  <span className="recent-meta">
-                    {r.nodeCount} nodes · {timeAgo(r.timestamp)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </motion.div>
     </div>
   );
