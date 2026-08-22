@@ -45,7 +45,7 @@ export function Inspector() {
   const img = node.imageId ? images[node.imageId] : null;
 
   const commitText = () => {
-    const t = text.trim();
+    const t = text.trim().slice(0, 240);
     if (t && t !== node.text) renameNode(node.id, t);
     else setText(node.text);
   };
@@ -57,7 +57,7 @@ export function Inspector() {
   };
 
   const submitAnn = () => {
-    const t = annText.trim();
+    const t = annText.trim().slice(0, 1000);
     if (!t) return;
     addAnnotation(node.id, annKind, t, annColor);
     setAnnText("");
@@ -71,6 +71,7 @@ export function Inspector() {
           <textarea
             className="insp-textarea"
             value={text}
+            maxLength={240}
             onChange={(e) => setText(e.target.value)}
             onBlur={commitText}
             onKeyDown={(e) => {
@@ -152,6 +153,7 @@ export function Inspector() {
               ref={annRef}
               placeholder="Add a note…"
               value={annText}
+              maxLength={1000}
               onChange={(e) => setAnnText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {

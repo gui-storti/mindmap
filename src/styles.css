@@ -275,6 +275,7 @@ textarea {
 
 .btn-row {
   display: flex;
+  align-items: center;
   gap: 7px;
 }
 
@@ -323,6 +324,7 @@ textarea {
   min-width: 40px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 /* ---------- search bar ---------- */

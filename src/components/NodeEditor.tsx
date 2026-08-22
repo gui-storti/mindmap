@@ -49,7 +49,7 @@ export function NodeEditor({ engine }: Props) {
   if (!editingId || !node || !pos) return null;
 
   const commit = () => {
-    const t = text.trim();
+    const t = text.trim().slice(0, 240);
     if (t) renameNode(editingId, t);
     setEditing(null);
   };
@@ -67,6 +67,7 @@ export function NodeEditor({ engine }: Props) {
       <textarea
         ref={taRef}
         value={text}
+        maxLength={240}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {

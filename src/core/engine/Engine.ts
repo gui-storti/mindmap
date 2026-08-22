@@ -23,6 +23,8 @@ export interface EngineState {
     imageId: string | null;
     annotations: { kind: string; color: string }[];
     collapsed: boolean;
+    parentId: string | null;
+    childIds: string[];
   }>;
   images: Record<string, { url: string; w: number; h: number }>;
   selectedIds: string[];
@@ -151,6 +153,8 @@ export class Engine {
 
   private selectedSet = new Set<string>();
   private searchSet = new Set<string>();
+  private glowSet = new Set<string>();
+  private glowSelKey = "";
   private hoverId: string | null = null;
   private dropTargetId: string | null = null;
   private dragId: string | null = null;
@@ -238,15 +242,21 @@ export class Engine {
   setLayout(layout: LayoutResult, mode: LayoutMode) {
     this.layout = layout;
     const ids = new Set<string>();
+    const parentOf = new Map<string, string>();
+    for (const [a, b] of layout.edges) parentOf.set(b, a);
     for (const id of layout.positions.keys()) {
       ids.add(id);
       if (!this.visuals.has(id)) {
         const p = layout.positions.get(id)!;
+        let sx = p.x, sy = p.y;
+        const pid = parentOf.get(id);
+        if (pid) {
+          const pv = this.visuals.get(pid);
+          if (pv) { sx = pv.x; sy = pv.y; }
+        }
         this.visuals.set(id, {
-          x: p.x,
-          y: p.y,
-          vx: 0,
-          vy: 0,
+          x: sx, y: sy,
+          vx: 0, vy: 0,
           scale: 0.6,
           alpha: 0,
           edgeT: 0,
@@ -295,6 +305,8 @@ export class Engine {
     this.simActive = false;
     this.selectedSet.clear();
     this.searchSet.clear();
+    this.glowSet.clear();
+    this.glowSelKey = "";
     this.hoverId = null;
     this.dropTargetId = null;
     this.dragId = null;
@@ -754,6 +766,7 @@ export class Engine {
     }
 
     this.syncImages();
+    this.computeGlowSet();
     this.render();
     this.events.onCamera({ ...this.cam });
 
@@ -777,6 +790,42 @@ export class Engine {
     }
     this.images = next;
     this.kick();
+  }
+
+  private computeGlowSet() {
+    const st = this.getState();
+    const sel = st.selectedIds;
+    const key = sel.join(",");
+    if (key === this.glowSelKey) return;
+    this.glowSelKey = key;
+    if (!sel.length) {
+      this.glowSet.clear();
+      return;
+    }
+    const glow = new Set<string>();
+    type GlowNode = { parentId: string | null; childIds: string[] };
+    const nodes: Record<string, GlowNode> = st.nodes as unknown as Record<string, GlowNode>;
+    for (const id of sel) {
+      glow.add(id);
+      let cur: string | null = id;
+      while (cur) {
+        const node: GlowNode | undefined = nodes[cur];
+        if (!node?.parentId) break;
+        glow.add(node.parentId);
+        cur = node.parentId;
+      }
+      const stack: string[] = [id];
+      while (stack.length) {
+        const nid = stack.pop()!;
+        const node: GlowNode | undefined = nodes[nid];
+        if (!node) continue;
+        for (const kid of node.childIds) {
+          glow.add(kid);
+          stack.push(kid);
+        }
+      }
+    }
+    this.glowSet = glow;
   }
 
   // ---------- render ----------
@@ -921,6 +970,18 @@ export class Engine {
       ctx.fill();
       ctx.globalAlpha = 1;
       return;
+    }
+
+    if (this.glowSet.has(id)) {
+      const t = performance.now() * 0.003;
+      const pulse = 0.5 + 0.5 * Math.sin(t);
+      ctx.save();
+      ctx.shadowColor = rgba(color, 0.3 + 0.5 * pulse);
+      ctx.shadowBlur = (10 + 20 * pulse) * z;
+      roundRect(ctx, x, y, sw, sh, r);
+      ctx.fillStyle = rgba(color, 0.06 + 0.1 * pulse);
+      ctx.fill();
+      ctx.restore();
     }
 
     const glowColor = isDrop ? "#5ee7ff" : isMatch ? "#fbbf24" : color;
