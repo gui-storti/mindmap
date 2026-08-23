@@ -119,13 +119,12 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          components:
-            - platforms;android-36
-            - build-tools;34.0.0
-            - ndk;26.1.10909125
+          packages: 'platforms;android-36 build-tools;34.0.0 ndk;26.1.10909125'
 
       - name: Build Tauri (Android)
         run: npx tauri android build
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.1.10909125
 
       - name: Upload artifacts to release
         uses: softprops/action-gh-release@v2
