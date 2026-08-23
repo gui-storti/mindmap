@@ -130,7 +130,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/mindmap-universal-release.apk
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
           draft: false
           prerelease: false
         env:
