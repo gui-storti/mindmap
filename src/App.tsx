@@ -3,7 +3,7 @@ import { Engine } from "./core/engine/Engine";
 import { useStore } from "./core/store";
 import { exportMapData } from "./core/store";
 import { exportMindMap, importMindMap, normalizeMap } from "./core/mindFile";
-import { openMindFile, openMarkdownFile, saveMindFile, saveBlob } from "./core/bridge";
+import { openMindFile, openMarkdownFile, saveMindFile, saveFile } from "./core/bridge";
 import { toMarkdown, fromMarkdown } from "./core/markdown";
 import {
   getLibrary,
@@ -141,7 +141,7 @@ export default function App() {
     try {
       const blob = await engineRef.current?.exportPNG();
       if (!blob) throw new Error("No engine");
-      saveBlob(blob, `${safeName()}.png`);
+      await saveFile(blob, `${safeName()}.png`, "PNG image", "png");
       s.showToast("PNG exported");
     } catch (e) {
       s.showToast(`PNG export failed: ${(e as Error).message}`);
@@ -168,8 +168,9 @@ export default function App() {
         format: [img.width, img.height],
       });
       pdf.addImage(url, "PNG", 0, 0, img.width, img.height);
-      pdf.save(`${safeName()}.pdf`);
       URL.revokeObjectURL(url);
+      const pdfBlob = pdf.output("blob");
+      await saveFile(pdfBlob, `${safeName()}.pdf`, "PDF document", "pdf");
       s.showToast("PDF exported");
     } catch (e) {
       s.showToast(`PDF export failed: ${(e as Error).message}`);
@@ -181,7 +182,7 @@ export default function App() {
     if (!s.hasMap) return;
     try {
       const md = toMarkdown(exportMapData());
-      saveBlob(new Blob([md], { type: "text/markdown" }), `${safeName()}.md`);
+      await saveFile(new Blob([md], { type: "text/markdown" }), `${safeName()}.md`, "Markdown", "md");
       s.showToast("Markdown exported");
     } catch (e) {
       s.showToast(`Markdown export failed: ${(e as Error).message}`);
@@ -346,6 +347,8 @@ export default function App() {
       redo: () => useStore.getState().redo(),
       moveNode: (id: string, x: number, y: number) =>
         useStore.getState().moveNode(id, x, y),
+      renameNode: (id: string, text: string) =>
+        useStore.getState().renameNode(id, text),
       exportData: () => exportMapData(),
       exportPNGInfo: async () => {
         const blob = await engineRef.current?.exportPNG();

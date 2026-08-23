@@ -89,3 +89,24 @@ export function saveBlob(blob: Blob, suggestedName: string) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
+
+/** Save a blob to a user-chosen path via native dialog (Tauri) or browser download (web). */
+export async function saveFile(
+  blob: Blob,
+  suggestedName: string,
+  filterName: string,
+  filterExt: string
+): Promise<void> {
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const data = new Uint8Array(await blob.arrayBuffer());
+    await invoke("save_file", {
+      data: Array.from(data),
+      suggestedName,
+      filterName,
+      filterExts: [filterExt],
+    });
+    return;
+  }
+  saveBlob(blob, suggestedName);
+}

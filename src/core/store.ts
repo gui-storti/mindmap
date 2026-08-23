@@ -577,7 +577,7 @@ export const useStore = create<MindmapStore>((set, get) => {
         [parent]: { ...p, childIds: [...p.childIds, n.id], collapsed: false },
       };
       commit(() => ({ nodes }), { type: "add", id: n.id, node: n });
-      set({ selectedId: n.id, editingId: n.id, inspectorOpen: false });
+      set({ selectedId: n.id, selectedIds: [n.id], editingId: n.id, inspectorOpen: false });
       return n.id;
     },
 
@@ -598,7 +598,7 @@ export const useStore = create<MindmapStore>((set, get) => {
         [n.parentId]: { ...parent, childIds, collapsed: false },
       };
       commit(() => ({ nodes }), { type: "add", id: sib.id, node: sib });
-      set({ selectedId: sib.id, editingId: sib.id });
+      set({ selectedId: sib.id, selectedIds: [sib.id], editingId: sib.id });
       return sib.id;
     },
 

@@ -170,7 +170,7 @@ export function Inspector() {
                     ? { color: "#fff", borderColor: "rgba(139,124,255,0.6)" }
                     : undefined
                 }
-                onClick={() => setAnnKind("note")}
+                onClick={() => setAnnKind(annKind === "note" ? "highlight" : "note")}
               >
                 <IconNote style={{ width: 13, height: 13 }} />
               </button>

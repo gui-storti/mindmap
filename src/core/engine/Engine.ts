@@ -59,6 +59,8 @@ interface Visual {
   scale: number;
   alpha: number;
   edgeT: number;
+  dying?: boolean;
+  deathT?: number;
 }
 
 export interface RenderOpts {
@@ -148,6 +150,8 @@ export class Engine {
 
   private layout: LayoutResult | null = null;
   private visuals = new Map<string, Visual>();
+  private dyingPositions = new Map<string, PositionedNode>();
+  private dyingEdges: [string, string][] = [];
   private sim = new ForceSim();
   private simActive = false;
 
@@ -240,13 +244,42 @@ export class Engine {
   }
 
   setLayout(layout: LayoutResult, mode: LayoutMode) {
+    const oldLayout = this.layout;
     this.layout = layout;
     const ids = new Set<string>();
     const parentOf = new Map<string, string>();
     for (const [a, b] of layout.edges) parentOf.set(b, a);
+
+    // old parent map for dying edges
+    const oldParentOf = new Map<string, string>();
+    if (oldLayout) {
+      for (const [a, b] of oldLayout.edges) oldParentOf.set(b, a);
+    }
+
     for (const id of layout.positions.keys()) {
       ids.add(id);
-      if (!this.visuals.has(id)) {
+      const existing = this.visuals.get(id);
+      if (existing?.dying) {
+        // re-added: cancel death, reset to birth state
+        const p = layout.positions.get(id)!;
+        let sx = p.x, sy = p.y;
+        const pid = parentOf.get(id);
+        if (pid) {
+          const pv = this.visuals.get(pid);
+          if (pv) { sx = pv.x; sy = pv.y; }
+        }
+        existing.x = sx;
+        existing.y = sy;
+        existing.vx = 0;
+        existing.vy = 0;
+        existing.scale = 0.6;
+        existing.alpha = 0;
+        existing.edgeT = 0;
+        existing.dying = false;
+        existing.deathT = 0;
+        this.dyingPositions.delete(id);
+        this.dyingEdges = this.dyingEdges.filter(([a, b]) => a !== id && b !== id);
+      } else if (!existing) {
         const p = layout.positions.get(id)!;
         let sx = p.x, sy = p.y;
         const pid = parentOf.get(id);
@@ -263,12 +296,25 @@ export class Engine {
         });
       }
     }
-    for (const id of [...this.visuals.keys()]) {
-      if (!ids.has(id)) this.visuals.delete(id);
+
+    // mark removed nodes as dying
+    for (const [id, v] of this.visuals) {
+      if (!ids.has(id) && !v.dying) {
+        v.dying = true;
+        v.deathT = 0;
+        const p = oldLayout?.positions.get(id);
+        if (p) this.dyingPositions.set(id, p);
+        const pid = oldParentOf.get(id);
+        if (pid) this.dyingEdges.push([pid, id]);
+      }
     }
+
     if (mode === "force") {
       const seed = new Map<string, { x: number; y: number }>();
-      for (const [id, v] of this.visuals) seed.set(id, { x: v.x, y: v.y });
+      for (const [id, v] of this.visuals) {
+        if (v.dying) continue;
+        seed.set(id, { x: v.x, y: v.y });
+      }
       const sizes = new Map<string, { w: number; h: number }>();
       for (const [id, p] of layout.positions) sizes.set(id, { w: p.w, h: p.h });
       this.sim.setGraph(
@@ -302,6 +348,8 @@ export class Engine {
   clear() {
     this.layout = null;
     this.visuals.clear();
+    this.dyingPositions.clear();
+    this.dyingEdges = [];
     this.simActive = false;
     this.selectedSet.clear();
     this.searchSet.clear();
@@ -765,8 +813,37 @@ export class Engine {
       }
     }
 
+    // dying nodes
+    for (const [_id, v] of this.visuals) {
+      if (!v.dying) continue;
+      v.deathT = (v.deathT ?? 0) + dt * 3;
+      v.alpha = Math.max(0, 1 - v.deathT);
+      v.scale = Math.max(0.6, 1 - v.deathT * 0.4);
+      v.edgeT = Math.max(0, 1 - v.deathT);
+      active = true;
+    }
+    // remove fully dead nodes
+    const dead: string[] = [];
+    for (const [id, v] of this.visuals) {
+      if (v.dying && (v.deathT ?? 0) >= 1) dead.push(id);
+    }
+    for (const id of dead) {
+      this.visuals.delete(id);
+      this.dyingPositions.delete(id);
+    }
+    if (dead.length) {
+      this.dyingEdges = this.dyingEdges.filter(([a, b]) => !dead.includes(a) && !dead.includes(b));
+    }
+    // filter dyingEdges to only keep edges where at least one endpoint is still dying
+    this.dyingEdges = this.dyingEdges.filter(([a, b]) => {
+      const va = this.visuals.get(a);
+      const vb = this.visuals.get(b);
+      return (va?.dying || vb?.dying) && va && vb;
+    });
+
     this.syncImages();
     this.computeGlowSet();
+    if (this.glowSet.size > 0) active = true;
     this.render();
     this.events.onCamera({ ...this.cam });
 
@@ -872,8 +949,8 @@ export class Engine {
     for (const [a, b] of layout.edges) {
       const va = this.visuals.get(a);
       const vb = this.visuals.get(b);
-      const pa = layout.positions.get(a);
-      const pb = layout.positions.get(b);
+      const pa = layout.positions.get(a) ?? this.dyingPositions.get(a);
+      const pb = layout.positions.get(b) ?? this.dyingPositions.get(b);
       if (!va || !vb || !pa || !pb) continue;
       if (!inView(pa, va) && !inView(pb, vb)) continue;
       const na = st.nodes[a];
@@ -881,55 +958,84 @@ export class Engine {
       if (!na || !nb) continue;
       const t = Math.min(va.edgeT, vb.edgeT);
       if (t <= 0.01) continue;
-
-      const colA = na.color;
-      const colB = nb.color;
-      const grad = ctx.createLinearGradient(
-        toSX(va.x), toSY(va.y), toSX(vb.x), toSY(vb.y)
-      );
-      grad.addColorStop(0, rgba(colA, 0.55));
-      grad.addColorStop(1, rgba(colB, 0.55));
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = Math.max(1, 2 * z);
-
-      if (layout.mode === "tree") {
-        const dir = vb.x >= va.x ? 1 : -1;
-        const p0: [number, number] = [
-          toSX(va.x + (dir * pa.w) / 2),
-          toSY(va.y),
-        ];
-        const p3: [number, number] = [
-          toSX(vb.x - (dir * pb.w) / 2),
-          toSY(vb.y),
-        ];
-        const dxm = Math.abs(p3[0] - p0[0]) * 0.5;
-        const p1: [number, number] = [p0[0] + dir * dxm, p0[1]];
-        const p2: [number, number] = [p3[0] - dir * dxm, p3[1]];
-        const [q0, q1, q2, q3] = t < 1 ? splitCubic(p0, p1, p2, p3, t) : [p0, p1, p2, p3];
-        ctx.beginPath();
-        ctx.moveTo(q0[0], q0[1]);
-        ctx.bezierCurveTo(q1[0], q1[1], q2[0], q2[1], q3[0], q3[1]);
-        ctx.stroke();
-      } else {
-        const x1 = toSX(va.x);
-        const y1 = toSY(va.y);
-        const x2 = toSX(vb.x) - ((toSX(vb.x) - x1) * (1 - t));
-        const y2 = toSY(vb.y) - ((toSY(vb.y) - y1) * (1 - t));
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      }
+      this.drawEdge(ctx, va, vb, pa, pb, na.color, nb.color, t, layout.mode, toSX, toSY, z);
+    }
+    // dying edges
+    for (const [a, b] of this.dyingEdges) {
+      const va = this.visuals.get(a);
+      const vb = this.visuals.get(b);
+      const pa = layout.positions.get(a) ?? this.dyingPositions.get(a);
+      const pb = layout.positions.get(b) ?? this.dyingPositions.get(b);
+      if (!va || !vb || !pa || !pb) continue;
+      if (!inView(pa, va) && !inView(pb, vb)) continue;
+      const na = st.nodes[a];
+      const nb = st.nodes[b];
+      if (!na || !nb) continue;
+      const t = Math.min(va.edgeT, vb.edgeT);
+      if (t <= 0.01) continue;
+      this.drawEdge(ctx, va, vb, pa, pb, na.color, nb.color, t, layout.mode, toSX, toSY, z);
     }
 
     // nodes
     for (const [id, v] of this.visuals) {
-      const p = layout.positions.get(id);
+      const p = layout.positions.get(id) ?? this.dyingPositions.get(id);
       if (!p) continue;
       if (!inView(p, v)) continue;
       const node = st.nodes[id];
       if (!node) continue;
       this.drawNode(ctx, id, node.color, p, v, toSX, toSY, st, z);
+    }
+  }
+
+  private drawEdge(
+    ctx: CanvasRenderingContext2D,
+    va: Visual,
+    vb: Visual,
+    pa: PositionedNode,
+    pb: PositionedNode,
+    colA: string,
+    colB: string,
+    t: number,
+    mode: string,
+    toSX: (x: number) => number,
+    toSY: (y: number) => number,
+    z: number
+  ) {
+    const grad = ctx.createLinearGradient(
+      toSX(va.x), toSY(va.y), toSX(vb.x), toSY(vb.y)
+    );
+    grad.addColorStop(0, rgba(colA, 0.55));
+    grad.addColorStop(1, rgba(colB, 0.55));
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = Math.max(1, 2 * z);
+
+    if (mode === "tree") {
+      const dir = vb.x >= va.x ? 1 : -1;
+      const p0: [number, number] = [
+        toSX(va.x + (dir * pa.w) / 2),
+        toSY(va.y),
+      ];
+      const p3: [number, number] = [
+        toSX(vb.x - (dir * pb.w) / 2),
+        toSY(vb.y),
+      ];
+      const dxm = Math.abs(p3[0] - p0[0]) * 0.5;
+      const p1: [number, number] = [p0[0] + dir * dxm, p0[1]];
+      const p2: [number, number] = [p3[0] - dir * dxm, p3[1]];
+      const [q0, q1, q2, q3] = t < 1 ? splitCubic(p0, p1, p2, p3, t) : [p0, p1, p2, p3];
+      ctx.beginPath();
+      ctx.moveTo(q0[0], q0[1]);
+      ctx.bezierCurveTo(q1[0], q1[1], q2[0], q2[1], q3[0], q3[1]);
+      ctx.stroke();
+    } else {
+      const x1 = toSX(va.x);
+      const y1 = toSY(va.y);
+      const x2 = toSX(vb.x) - ((toSX(vb.x) - x1) * (1 - t));
+      const y2 = toSY(vb.y) - ((toSY(vb.y) - y1) * (1 - t));
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
     }
   }
 
