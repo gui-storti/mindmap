@@ -77,6 +77,23 @@ export const NODE_COLORS = [
   "#60a5fa", // blue
   "#fb923c", // orange
   "#f87171", // red
+  "#a3e635", // lime
+  "#c084fc", // purple
+  "#22d3ee", // teal
+  "#e879f9", // fuchsia
+  "#facc15", // yellow
+  "#4ade80", // emerald
+  "#38bdf8", // sky
+  "#f43f5e", // rose
 ] as const;
 
-export const HIGHLIGHT_COLORS = ["#fbbf24", "#34d399", "#60a5fa", "#f472b6", "#8b7cff"] as const;
+export const HIGHLIGHT_COLORS = [
+  "#fbbf24", // amber
+  "#34d399", // green
+  "#60a5fa", // blue
+  "#f472b6", // pink
+  "#8b7cff", // violet
+  "#facc15", // yellow
+  "#22d3ee", // teal
+  "#fb923c", // orange
+] as const;
