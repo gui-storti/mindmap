@@ -247,8 +247,6 @@ export class Engine {
     const oldLayout = this.layout;
     this.layout = layout;
     const ids = new Set<string>();
-    const parentOf = new Map<string, string>();
-    for (const [a, b] of layout.edges) parentOf.set(b, a);
 
     // old parent map for dying edges
     const oldParentOf = new Map<string, string>();
@@ -256,20 +254,37 @@ export class Engine {
       for (const [a, b] of oldLayout.edges) oldParentOf.set(b, a);
     }
 
+    // Find the closest existing (non-dying) visual to a layout position
+    const closestVisual = (
+      target: { x: number; y: number },
+      excludeId: string,
+    ): { x: number; y: number } | null => {
+      let best: { x: number; y: number } | null = null;
+      let bestDist = Infinity;
+      for (const [otherId, otherPos] of layout.positions) {
+        if (otherId === excludeId) continue;
+        const ov = this.visuals.get(otherId);
+        if (!ov || ov.dying) continue;
+        const dx = otherPos.x - target.x;
+        const dy = otherPos.y - target.y;
+        const dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = { x: ov.x, y: ov.y };
+        }
+      }
+      return best;
+    };
+
     for (const id of layout.positions.keys()) {
       ids.add(id);
       const existing = this.visuals.get(id);
       if (existing?.dying) {
         // re-added: cancel death, reset to birth state
         const p = layout.positions.get(id)!;
-        let sx = p.x, sy = p.y;
-        const pid = parentOf.get(id);
-        if (pid) {
-          const pv = this.visuals.get(pid);
-          if (pv) { sx = pv.x; sy = pv.y; }
-        }
-        existing.x = sx;
-        existing.y = sy;
+        const cv = closestVisual(p, id);
+        existing.x = cv ? cv.x : p.x;
+        existing.y = cv ? cv.y : p.y;
         existing.vx = 0;
         existing.vy = 0;
         existing.scale = 0.6;
@@ -281,14 +296,10 @@ export class Engine {
         this.dyingEdges = this.dyingEdges.filter(([a, b]) => a !== id && b !== id);
       } else if (!existing) {
         const p = layout.positions.get(id)!;
-        let sx = p.x, sy = p.y;
-        const pid = parentOf.get(id);
-        if (pid) {
-          const pv = this.visuals.get(pid);
-          if (pv) { sx = pv.x; sy = pv.y; }
-        }
+        const cv = closestVisual(p, id);
         this.visuals.set(id, {
-          x: sx, y: sy,
+          x: cv ? cv.x : p.x,
+          y: cv ? cv.y : p.y,
           vx: 0, vy: 0,
           scale: 0.6,
           alpha: 0,
