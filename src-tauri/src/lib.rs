@@ -61,11 +61,12 @@ async fn save_file(
     filter_name: String,
     filter_exts: Vec<String>,
 ) -> Result<(), String> {
+    let ext_refs: Vec<&str> = filter_exts.iter().map(|s| s.as_str()).collect();
     let picked = app
         .dialog()
         .file()
         .set_title("Save file")
-        .add_filter(&filter_name, &filter_exts)
+        .add_filter(&filter_name, &ext_refs)
         .set_file_name(suggested_name)
         .blocking_save_file();
 
