@@ -96,22 +96,7 @@ export function Toolbar({ engine }: Props) {
             <IconPalette />
           </button>
           {colorOpen && sel && (
-            <div
-              style={{
-                position: "absolute",
-                left: "calc(100% + 10px)",
-                top: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                padding: 10,
-                background: "var(--glass-strong)",
-                border: "1px solid var(--stroke-strong)",
-                borderRadius: 12,
-                boxShadow: "var(--shadow)",
-                backdropFilter: "blur(20px)",
-              }}
-            >
+            <div className="color-pop">
               {NODE_COLORS.map((c) => (
                 <button
                   key={c}

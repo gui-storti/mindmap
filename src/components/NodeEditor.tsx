@@ -54,14 +54,21 @@ export function NodeEditor({ engine }: Props) {
     setEditing(null);
   };
 
+  const w = Math.max(pos.w, 120);
+  const h = Math.max(pos.h, 34);
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const x = Math.min(Math.max(pos.x, w / 2 + 8), vw - w / 2 - 8);
+  const y = Math.min(Math.max(pos.y, h / 2 + 8), vh - h / 2 - 8);
+
   return (
     <div
       className="node-editor"
       style={{
-        left: pos.x,
-        top: pos.y,
-        width: Math.max(pos.w, 120),
-        height: Math.max(pos.h, 34),
+        left: x,
+        top: y,
+        width: w,
+        height: h,
       }}
     >
       <textarea

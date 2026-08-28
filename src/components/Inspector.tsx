@@ -178,6 +178,11 @@ export function Inspector() {
                 {annKind === "note" ? "Note" : "Highlight"}
               </span>
               <span className="spacer" />
+              <button className="mini-btn primary" onClick={submitAnn}>
+                Add
+              </button>
+            </div>
+            <div className="ann-colors">
               {HIGHLIGHT_COLORS.map((c) => (
                 <button
                   key={c}
@@ -190,9 +195,6 @@ export function Inspector() {
                   onClick={() => setAnnColor(c)}
                 />
               ))}
-              <button className="mini-btn primary" onClick={submitAnn}>
-                Add
-              </button>
             </div>
           </div>
         </section>
